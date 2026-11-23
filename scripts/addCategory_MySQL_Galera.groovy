@@ -1,10 +1,10 @@
 // addCategory_MySQL_Galera: marks a resource whose MySQL / MariaDB server is a Galera node.
 //
 // Silent on everything that is not a Galera node, and on every failure: exit 0, no output.
+// Missing credentials make galeraFetch throw before any connection, so they land here too.
 // A PropertySource can add a category but never remove one, so a wrong category here would
 // apply the suite to a server that is not part of a cluster, permanently.
 try {
-    if (!galeraProp('jdbc.mysql.user') || hostProps.get('jdbc.mysql.pass') == null) { return 0 }
     def nodes = []
     galeraEachNode { port, read -> nodes << [port: port, read: read] }
     if (!nodes) { return 0 }
@@ -20,7 +20,7 @@ try {
     ]
     println 'system.categories=MySQL_Galera'
     props.each { key, value ->
-        def text = value?.toString()?.replaceAll(/[\r\n]+/, ' ')?.trim()
+        def text = galeraClean(value)
         if (text) { println "${key}=${text}" }
     }
     return 0

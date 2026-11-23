@@ -13,6 +13,8 @@
 x-galera: &galera
   build: ./galera
   profiles: ["live"]
+  # A fresh data directory on every start: a bootstrap node reusing an old one is refused.
+  tmpfs: [/var/lib/mysql]
   healthcheck:
     test: ["CMD-SHELL", "mariadb -uroot -e \"SHOW STATUS LIKE 'wsrep_local_state_comment'\" | grep -q Synced"]
     interval: 3s
@@ -46,7 +48,7 @@ services:
       - ..:/work
     environment:
       GALERA_MODULE_ROOT: /work
-    command: groovy tests/harness.groovy
+    command: groovy -cp tests tests/harness.groovy
 
   galera1:
     <<: *galera
@@ -73,6 +75,7 @@ services:
   standalone:
     image: mariadb:11.4
     profiles: ["live"]
+    tmpfs: [/var/lib/mysql]
     environment:
       MARIADB_ROOT_PASSWORD: rootpw
       MARIADB_USER: logicmonitor
@@ -94,11 +97,8 @@ services:
       - grape:/root/.groovy/grapes
     environment:
       GALERA_MODULE_ROOT: /work
-    depends_on:
-      galera3: {condition: service_healthy}
-      standalone: {condition: service_healthy}
     networks: [cluster, mgmt]
-    command: groovy tests/live.groovy
+    command: groovy -cp tests tests/live.groovy
 
 networks:
   cluster: {name: galera-live-cluster}

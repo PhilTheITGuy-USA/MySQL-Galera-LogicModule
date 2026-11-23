@@ -19,11 +19,4 @@ def result = galeraEachNode { port, read ->
     galeraEmit(port, 'DesyncCount', galeraNum(s, 'wsrep_desync_count'))
     galeraEmit(port, 'OpenTransactions', galeraNum(s, 'wsrep_open_transactions'))
 }
-if (result.galera == 0) {
-    System.err.println(result.answered == 0
-        ? 'No MySQL server answered: ' + result.failed.collect { k, v -> k + ' ' + v }.join('; ')
-        : 'No Galera node answered on ' + galeraPorts().join(', '))
-    return 2
-}
-result.failed.each { port, reason -> System.err.println('port ' + port + ': ' + reason) }
-return 0
+return galeraExit(result, true)

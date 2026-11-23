@@ -5,5 +5,6 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends rsync lsof iproute2 \
  && rm -rf /var/lib/apt/lists/*
 COPY start-galera.sh /usr/local/bin/start-galera.sh
+COPY galera-init.sql /usr/local/share/galera-init.sql
 RUN chmod +x /usr/local/bin/start-galera.sh
 ENTRYPOINT ["/usr/local/bin/start-galera.sh"]

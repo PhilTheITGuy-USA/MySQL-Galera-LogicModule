@@ -28,6 +28,7 @@ import json
 import re
 import shutil
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -267,16 +268,21 @@ def check_definition(path: Path, defn: dict) -> list[str]:
     return problems
 
 
+def duplicates(items: list) -> list:
+    """The items that occur more than once, sorted."""
+    return sorted(item for item, n in Counter(items).items() if n > 1)
+
+
 def check_datasource(defn: dict) -> list[str]:
     """Declared datapoints against what the collection script prints, and graph lines."""
     name = defn["name"]
     problems: list[str] = []
-    emitted = EMIT_RE.findall(read(SCRIPTS / defn["collectScript"]))
+    # Comments stripped first, so a commented-out galeraEmit never counts as printed.
+    emitted = EMIT_RE.findall(strip_comments(read(SCRIPTS / defn["collectScript"])))
     declared = [dp["name"] for dp in defn["datapoints"]]
-    conditional = {dp["name"] for dp in defn["datapoints"] if dp.get(CONDITIONAL_KEY)}
-    for dup in sorted({n for n in emitted if emitted.count(n) > 1}):
+    for dup in duplicates(emitted):
         problems.append(f"{name}: script prints {dup!r} more than once")
-    for dup in sorted({n for n in declared if declared.count(n) > 1}):
+    for dup in duplicates(declared):
         problems.append(f"{name}: datapoint {dup!r} is declared twice")
     for missing in sorted(set(emitted) - set(declared)):
         problems.append(f"{name}: script prints {missing!r} but no datapoint declares it")
@@ -284,14 +290,14 @@ def check_datasource(defn: dict) -> list[str]:
         problems.append(f"{name}: datapoint {unfilled!r} is declared but never printed")
     plotted = set()
     titles = [graph.get("title") for graph in defn["graphs"]]
-    for dup in sorted({t for t in titles if titles.count(t) > 1}):
+    for dup in duplicates(titles):
         problems.append(f"{name}: graph title {dup!r} is used twice")
     for graph in defn["graphs"]:
         title = graph.get("title")
         for key in sorted(set(graph) - GRAPH_KEYS):
             problems.append(f"{name}: graph {title!r} has unknown key {key!r}")
         colours = [line.get("color") for line in graph["lines"] if line.get("color")]
-        for dup in sorted({c for c in colours if colours.count(c) > 1}):
+        for dup in duplicates(colours):
             problems.append(f"{name}: graph {title!r} uses {dup!r} twice")
         for line in graph["lines"]:
             for key in sorted(set(line) - GRAPH_LINE_KEYS):
@@ -317,9 +323,8 @@ def check_dashboard(path: Path, dashboard: dict, index: dict[str, set[str]]) -> 
         if isinstance(node, dict):
             module = node.get("dataSourceFullName")
             if isinstance(module, str):
-                for key in ("dataPointName",):
-                    if isinstance(node.get(key), str):
-                        refs.append((module, node[key]))
+                if isinstance(node.get("dataPointName"), str):
+                    refs.append((module, node["dataPointName"]))
                 for column in node.get("columns", []) or []:
                     if isinstance(column, dict) and "dataPointName" in column:
                         refs.append((module, column["dataPointName"]))

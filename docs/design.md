@@ -68,9 +68,9 @@ The one record of what has been proved, and by which layer.
 | Layer | What | Result |
 |---|---|---|
 | Local: build | `python build/build.py`: definitions against scripts (every printed datapoint declared and every declared one printed, graphs, status names, field and script length limits), dashboard references | Pass, 2026-11-23 |
-| Local: lint | `lm_lint_module.py dist`, `lm_dashboards.py check` | 0 errors; 2 warnings judged (the wildvalue is the port number, validated as digits) |
+| Local: lint | `lm_lint_module.py dist`, `lm_dashboards.py check` | 0 errors, 0 warnings |
 | Local: compile | `groovyc` in `groovy:4-jdk17` on every assembled script | Pass, 2026-11-23 |
-| Local: harness | `tests/harness.groovy`: 56 checks over six recorded server shapes (MariaDB Galera 4, Percona XtraDB Cluster donor, a partitioned node, Galera 3 joining, standalone MySQL, wsrep without a provider) | All pass, 2026-11-23 |
+| Local: harness | `tests/harness.groovy`: 58 checks over six recorded server shapes (MariaDB Galera 4, Percona XtraDB Cluster donor, a partitioned node, Galera 3 joining, standalone MySQL, wsrep without a provider) | All pass, 2026-11-23 |
 | Live target | `tests/live.sh`: a real three-node MariaDB 11.4.13 / Galera 26.4.27 cluster and a standalone MariaDB, through MySQL Connector/J 9.1.0, no test seam. Healthy cluster; a 200-row write load; a node desynced (`wsrep_desync`); a node partitioned off the network (Non-Primary, LocalState 0, Ready 0, size 1, MissingNodes 2; the majority Primary with size 2, MissingNodes 1); the node healed and rejoined | All pass, 2026-11-23 |
 | Portal import | Import of the three modules and the dashboard | **Not yet done** |
 | Collector | The scripts on a real Collector, with its bundled JDBC driver | **Not yet done.** The driver class names and direct `Driver.connect` are inferred from LogicMonitor's documentation that the Collector bundles JDBC drivers; first thing to check in a portal is a Poll Now on `MySQL_Galera_Node` |

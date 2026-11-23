@@ -13,49 +13,29 @@ def dist = new File(root, 'dist')
 def fixtures = new File(root, 'tests/fixtures')
 def slurper = new JsonSlurper()
 
-// The Collector's hostProps is a ParamMap: get / set, no put, not a java.util.Map.
-class Props {
-    private final Map values = [:]
-    Props(Map initial) { values.putAll(initial) }
-    def get(String key) { values[key] }
-    void set(String key, value) { values[key] = value }
-}
-
-def failures = 0
-def note = { String name, boolean ok, String detail = '' ->
-    println((ok ? 'PASS    ' : 'FAILED  ') + name + (ok || !detail ? '' : '\n        ' + detail.replace('\n', '\n        ')))
-    if (!ok) { failures++ }
-}
+def t = new GaleraTestSupport(root)
+def note = t.&note
+def values = GaleraTestSupport.&values
 
 def fixture = { String name -> slurper.parse(new File(fixtures, name + '.json')) }
 
-// Run one assembled script. reads: port -> fixture map, or an Exception to throw for that port.
+// Run one assembled script. reads: port -> fixture map, or an Exception to throw for that port;
+// a port with no entry refuses the connection.
 def run = { String script, Map props, Map reads ->
-    def out = new StringWriter()
-    def err = new ByteArrayOutputStream()
-    def binding = new Binding()
-    binding.setVariable('hostProps', new Props([
-        'system.hostname': 'node-a.example.com', 'jdbc.mysql.user': 'logicmonitor', 'jdbc.mysql.pass': 'x'] + props))
-    binding.setVariable('out', new PrintWriter(out, true))
-    binding.setVariable('galeraTestFetch', { String port ->
+    t.run(script, ['system.hostname': 'node-a.example.com', 'jdbc.mysql.user': 'logicmonitor', 'jdbc.mysql.pass': 'x'] + props) { String port ->
         def read = reads[port]
         if (read == null) { throw new java.net.ConnectException('Connection refused') }
         if (read instanceof Exception) { throw read }
         [status: read.status, vars: read.vars]
-    })
-    def savedErr = System.err
-    System.setErr(new PrintStream(err, true))
-    def exit
-    try {
-        exit = new GroovyShell(binding).evaluate(new File(dist, 'scripts/' + script))
-    } finally {
-        System.setErr(savedErr)
     }
-    [exit: exit, out: out.toString().readLines().findAll { it.trim() }, err: err.toString()]
 }
 
-def module = { String name -> slurper.parse(new File(dist, name + '.json')) }
+def module = { String name -> slurper.parse(new File(dist, name + '.json')) }.memoize()
 def declared = { String name -> module(name).datapoints*.name as Set }
+// The definitions' "conditional" datapoints may legitimately not print; every other one must.
+def required = { String name ->
+    slurper.parse(new File(root, 'modules/' + name + '.json')).datapoints.findAll { !it.conditional }*.name as Set
+}
 
 // --- output shape: every BatchScript line is <port>.<Datapoint>=<number> and declared --------
 def batchShape = { String label, String moduleName, Map result ->
@@ -64,10 +44,6 @@ def batchShape = { String label, String moduleName, Map result ->
     def names = result.out.collect { it.replaceFirst(/^\d+\./, '').replaceFirst(/=.*/, '') } as Set
     def undeclared = names - declared(moduleName)
     note(label + ': every printed datapoint is declared', undeclared.isEmpty(), undeclared.join(', '))
-}
-def values = { Map result, String port ->
-    result.out.findAll { it.startsWith(port + '.') }
-        .collectEntries { def kv = it.substring(port.length() + 1).split('=', 2); [(kv[0]): kv[1]] }
 }
 
 def synced = fixture('mariadb_synced')
@@ -168,6 +144,11 @@ note('repl: queues and flags', v.LocalRecvQueue == '0' && v.LocalRecvQueueAvg ==
     v.CertDepsDistance == '14.5' && v.FlowControlActive == '0', v.toString())
 note('repl: every declared datapoint printed on Galera 4', declared('MySQL_Galera_Replication') == (v.keySet() as Set),
     (declared('MySQL_Galera_Replication') - v.keySet()).toString())
+['MySQL_Galera_Node', 'MySQL_Galera_Replication'].each { name ->
+    def printed = values(run(name + '.collect.groovy', [:], ['3306': joining]), '3306').keySet()
+    note(name + ': every datapoint not marked conditional prints, even on Galera 3', printed.containsAll(required(name)),
+        (required(name) - printed).toString())
+}
 r = run(repl, [:], ['3306': donor])
 v = values(r, '3306')
 note('repl: Percona flow-control flag', v.FlowControlActive == '1' && v.FlowControlPausedPercent == '9800' && v.LocalRecvQueueAvg == '12.25', v.toString())
@@ -190,5 +171,4 @@ note('repl: nothing answering exits 2', r.exit == 2 && r.out.isEmpty())
 }
 note('ps: embedded script is the tested one', module('addCategory_MySQL_Galera').script.content == new File(dist, 'scripts/' + ps).text)
 
-println(failures ? "\n${failures} FAILED" : '\nALL PASSED')
-System.exit(failures ? 1 : 0)
+System.exit(t.finish())
