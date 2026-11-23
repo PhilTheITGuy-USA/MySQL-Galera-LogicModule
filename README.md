@@ -18,6 +18,9 @@ connection per Galera port, and create one instance per port.
 
 ## Install
 
+The full step-by-step guide, with every module's settings and complete scripts for building the
+modules by hand, is [docs/build-guide.md](docs/build-guide.md). In short:
+
 1. **A monitoring account.** On any one node (it replicates to the others):
 
    ```sql

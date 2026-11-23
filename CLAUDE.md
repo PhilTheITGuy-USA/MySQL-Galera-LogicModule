@@ -27,6 +27,8 @@ section 4). Public repo; the workspace `..\CLAUDE.md` scrub rule applies.
   `harness.groovy` (fixtures in `tests/fixtures/`, through the `galeraTestFetch`
   binding seam), `live.groovy` + `live.sh` (a real MariaDB Galera cluster in Docker, no seam),
   `galera/` (the node image), `docker-compose.yml`.
+- `docs/build-guide.md` -- the deployment guide for end users and professional services, exported
+  from a Claude Doc. Its code blocks are the scripts verbatim: update them whenever a script changes.
 - `dist/` is generated and gitignored.
 
 ## Commands
