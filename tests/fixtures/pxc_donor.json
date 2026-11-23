@@ -1,0 +1,37 @@
+{
+  "_comment": "A Percona XtraDB Cluster 8.0 node serving an SST: Donor/Desynced, flow control on, reported through wsrep_flow_control_status. Values made up.",
+  "vars": {
+    "wsrep_on": "ON",
+    "wsrep_provider": "/usr/lib/galera4/libgalera_smm.so",
+    "wsrep_cluster_name": "Labcluster",
+    "wsrep_node_name": "Node-B",
+    "version": "8.0.39-30.1",
+    "version_comment": "Percona XtraDB Cluster (GPL), Release rel30, Revision 7d4b3e6, WSREP version 26.1.4.3"
+  },
+  "status": {
+    "wsrep_replicated": "500",
+    "wsrep_replicated_bytes": "120000",
+    "wsrep_received": "700",
+    "wsrep_received_bytes": "150000",
+    "wsrep_local_commits": "498",
+    "wsrep_local_cert_failures": "0",
+    "wsrep_local_send_queue": "3",
+    "wsrep_local_send_queue_avg": "1.5",
+    "wsrep_local_recv_queue": "42",
+    "wsrep_local_recv_queue_avg": "12.25",
+    "wsrep_flow_control_paused_ns": "98000000000",
+    "wsrep_flow_control_status": "ON",
+    "wsrep_cert_deps_distance": "3",
+    "wsrep_local_state": "2",
+    "wsrep_local_state_comment": "Donor/Desynced",
+    "wsrep_desync_count": "1",
+    "wsrep_cluster_size": "3",
+    "wsrep_cluster_status": "Primary",
+    "wsrep_cluster_weight": "3",
+    "wsrep_connected": "ON",
+    "wsrep_local_bf_aborts": "0",
+    "wsrep_provider_vendor": "Codership Oy <info@codership.com> (modified by Percona <https://percona.com/>)",
+    "wsrep_provider_version": "4.19(r4e8a1b1)",
+    "wsrep_ready": "ON"
+  }
+}

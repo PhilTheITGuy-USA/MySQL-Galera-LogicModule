@@ -1,0 +1,37 @@
+{
+  "_comment": "A node isolated from the rest of the cluster: non-Primary, not ready, alone in its component. Values made up.",
+  "vars": {
+    "wsrep_on": "ON",
+    "wsrep_provider": "/usr/lib/galera/libgalera_smm.so",
+    "wsrep_cluster_name": "Labcluster",
+    "wsrep_node_name": "Node-C",
+    "version": "11.4.4-MariaDB-ubu2404",
+    "version_comment": "mariadb.org binary distribution"
+  },
+  "status": {
+    "wsrep_replicated": "10",
+    "wsrep_replicated_bytes": "2000",
+    "wsrep_received": "12",
+    "wsrep_received_bytes": "2400",
+    "wsrep_local_commits": "10",
+    "wsrep_local_cert_failures": "0",
+    "wsrep_local_send_queue": "0",
+    "wsrep_local_send_queue_avg": "0",
+    "wsrep_local_recv_queue": "0",
+    "wsrep_local_recv_queue_avg": "0",
+    "wsrep_flow_control_paused_ns": "0",
+    "wsrep_flow_control_active": "false",
+    "wsrep_cert_deps_distance": "0",
+    "wsrep_local_state": "0",
+    "wsrep_local_state_comment": "Initialized",
+    "wsrep_desync_count": "0",
+    "wsrep_cluster_size": "1",
+    "wsrep_cluster_status": "non-Primary",
+    "wsrep_cluster_weight": "0",
+    "wsrep_connected": "ON",
+    "wsrep_local_bf_aborts": "0",
+    "wsrep_provider_vendor": "Codership Oy <info@codership.com>",
+    "wsrep_provider_version": "26.4.20(r7b5a1b9)",
+    "wsrep_ready": "OFF"
+  }
+}

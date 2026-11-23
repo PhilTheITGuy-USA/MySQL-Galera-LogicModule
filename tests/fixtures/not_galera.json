@@ -1,0 +1,8 @@
+{
+  "_comment": "A standalone MySQL 8.0 server: no wsrep variables at all.",
+  "vars": {
+    "version": "8.0.40",
+    "version_comment": "MySQL Community Server - GPL"
+  },
+  "status": {}
+}

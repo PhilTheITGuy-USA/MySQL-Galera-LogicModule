@@ -1,0 +1,14 @@
+{
+  "_comment": "A MariaDB server built with wsrep but running without a provider: wsrep_on reported, no cluster.",
+  "vars": {
+    "wsrep_on": "ON",
+    "wsrep_provider": "none",
+    "version": "11.4.4-MariaDB-ubu2404",
+    "version_comment": "mariadb.org binary distribution"
+  },
+  "status": {
+    "wsrep_cluster_status": "Disconnected",
+    "wsrep_ready": "OFF",
+    "wsrep_connected": "OFF"
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "name": "MySQL_Galera_Node",
+  "displayedAs": "MySQL Galera Node",
+  "description": "Galera cluster membership of this node: Primary Component, node state (Synced, Donor/Desynced, Joining, Joined), whether it accepts queries, and cluster size against the expected size.",
+  "group": "MySQL Galera",
+  "appliesTo": "hasCategory(\"MySQL_Galera\") && jdbc.mysql.user && jdbc.mysql.pass",
+  "searchKeywords": "mysql,mariadb,galera,wsrep,percona,pxc,cluster,quorum,primary,split-brain,synced",
+  "technicalNotes": "BatchScript, one instance per Galera port (wildvalue = port), one JDBC connection per port per poll running SHOW GLOBAL STATUS LIKE 'wsrep%'. Applies where addCategory_MySQL_Galera found a Galera node, with LogicMonitor's MySQL credentials jdbc.mysql.user / jdbc.mysql.pass and ports from jdbc.mysql.port (3306 is always probed). Needs only USAGE. The session sets wsrep_sync_wait = 0 first, so a node that has lost quorum still answers instead of blocking.\n\nStates are Galera's own numbering. ClusterStatus: 2 Primary, 1 Non-Primary (quorum lost, a partition or split brain), 0 Disconnected. LocalState (wsrep_local_state): 4 Synced, 3 Joined, 2 Donor/Desynced, 1 Joining, 0 Initialized or any other state. Ready and Connected are wsrep_ready and wsrep_connected, 1 = ON. A state the server reports in words this module does not know is withheld (No Data), never guessed.\n\nCluster size has no fixed threshold, because the right number is the cluster's own. Set galera.cluster.size on the resource (or the group holding the nodes) to the number of nodes the cluster should have: ExpectedClusterSize and MissingNodes are then reported, and MissingNodes > 0 raises an error. Without the property both read No Data. If you remove the property while a MissingNodes alert is open, that alert stays open until the instance is deleted.\n\nLocalState warns below Synced after five polls in a row, at one level only: a node climbing from Joining to Joined would restart a multi-level count, and a node that is out of the cluster altogether is already critical through ClusterStatus and Ready. A node is Donor/Desynced on purpose during an SST or a backup taken with wsrep_desync: schedule SDT for planned backups. ClusterWeight, DesyncCount and OpenTransactions exist on Galera 4 (and late Galera 3) only, and read No Data elsewhere.\n\nA server that does not answer fails the poll (exit 2), so every datapoint reads No Data rather than zero; LogicMonitor's MySQL Connection Status module alerts on that. Instances are never auto-deleted: a node that has gone is the condition this module exists for.",
+  "collectionMethod": "batchscript",
+  "collectionInterval": "1m",
+  "multiInstance": true,
+  "useWildValueAsUniqueIdentifier": true,
+  "collectScript": "MySQL_Galera_Node.collect.groovy",
+  "discoveryScript": "MySQL_Galera.ad.groovy",
+  "discoveryInterval": "60m",
+  "autoDelete": false,
+  "datapoints": [
+    {
+      "name": "ClusterStatus",
+      "description": "wsrep_cluster_status: 2 Primary, 1 Non-Primary (this node's partition lost quorum), 0 Disconnected.",
+      "threshold": "< 2 2 2",
+      "triggerInterval": 1,
+      "alertBody": "Galera node ##HOST## (##INSTANCE##) is ##ALERTVALUEDISPLAYSTATUSNAME## (##VALUE##), not part of the Primary Component. It refuses reads and writes until it rejoins a partition with quorum. If more than one node reports this, the cluster has partitioned or lost quorum entirely: check network links between the nodes and wsrep_cluster_size on each; a cluster with no Primary Component needs a manual bootstrap (pc.bootstrap=YES on the most advanced node).\n\nThis started at ##START##, ##DURATION## ago.",
+      "statusNames": {"0": "Disconnected", "1": "Non-Primary", "2": "Primary"}
+    },
+    {
+      "name": "LocalState",
+      "description": "wsrep_local_state: 4 Synced, 3 Joined, 2 Donor/Desynced, 1 Joining, 0 Initialized or other.",
+      "threshold": "< 4",
+      "triggerInterval": 4,
+      "alertBody": "Galera node ##HOST## (##INSTANCE##) has been ##ALERTVALUEDISPLAYSTATUSNAME## (##VALUE##) instead of Synced for five minutes. Joining and Joined mean it is still catching up after a restart or state transfer; Donor/Desynced means it is serving a state transfer or was desynced for a backup and lags the cluster meanwhile; Initialized means it is not in a cluster at all. Check the server's error log for the state transfer's progress.\n\nThis started at ##START##, ##DURATION## ago.",
+      "statusNames": {"0": "Initialized or other", "1": "Joining", "2": "Donor/Desynced", "3": "Joined", "4": "Synced"}
+    },
+    {
+      "name": "Ready",
+      "description": "wsrep_ready: 1 when the node accepts queries, 0 when it refuses them.",
+      "threshold": "< 1 1 1",
+      "triggerInterval": 1,
+      "alertBody": "Galera node ##HOST## (##INSTANCE##) is ##ALERTVALUEDISPLAYSTATUSNAME## (wsrep_ready OFF): it rejects almost every query from applications. This follows a loss of the Primary Component or a node that has not finished joining.\n\nThis started at ##START##, ##DURATION## ago.",
+      "statusNames": {"0": "Not ready", "1": "Ready"}
+    },
+    {
+      "name": "Connected",
+      "description": "wsrep_connected: 1 when the node has a network connection to the cluster, 0 when it is isolated.",
+      "threshold": "< 1 1 1",
+      "triggerInterval": 1,
+      "alertBody": "Galera node ##HOST## (##INSTANCE##) is ##ALERTVALUEDISPLAYSTATUSNAME## from the cluster (wsrep_connected OFF). It has no group communication with any other node: check the network between the nodes (port 4567) and wsrep_cluster_address.\n\nThis started at ##START##, ##DURATION## ago.",
+      "statusNames": {"0": "Disconnected", "1": "Connected"}
+    },
+    {
+      "name": "ClusterSize",
+      "description": "wsrep_cluster_size: nodes in this node's component, itself included."
+    },
+    {
+      "name": "ExpectedClusterSize",
+      "description": "The resource property galera.cluster.size: how many nodes the cluster should have. No Data when the property is not set.",
+      "conditional": true
+    },
+    {
+      "name": "MissingNodes",
+      "description": "ExpectedClusterSize minus ClusterSize, never below 0. No Data when galera.cluster.size is not set.",
+      "conditional": true,
+      "threshold": "> 0 0",
+      "triggerInterval": 1,
+      "alertBody": "The Galera cluster seen from ##HOST## (##INSTANCE##) is ##VALUE## node(s) short of galera.cluster.size. A cluster that loses half its nodes or more loses quorum. Find the missing node in the list of members (wsrep_incoming_addresses) and check whether it is down, partitioned or still joining.\n\nThis started at ##START##, ##DURATION## ago."
+    },
+    {
+      "name": "ClusterWeight",
+      "description": "wsrep_cluster_weight: total pc.weight of the nodes in this component; equals the node count unless weights were changed. Galera 4 only.",
+      "conditional": true
+    },
+    {
+      "name": "DesyncCount",
+      "description": "wsrep_desync_count: operations holding this node desynced (an SST donor, wsrep_desync, a backup lock). Galera 4 only.",
+      "conditional": true
+    },
+    {
+      "name": "OpenTransactions",
+      "description": "wsrep_open_transactions: locally running transactions registered with the provider. Galera 4 only.",
+      "conditional": true
+    }
+  ],
+  "graphs": [
+    {"title": "Node State", "verticalLabel": "state", "max": 4, "lines": [{"dp": "LocalState", "legend": "Local state (4 Synced)", "color": "blue"}, {"dp": "ClusterStatus", "legend": "Cluster status (2 Primary)", "color": "orange"}]},
+    {"title": "Availability", "verticalLabel": "1 = yes", "max": 1, "lines": [{"dp": "Ready", "legend": "Ready", "color": "green"}, {"dp": "Connected", "legend": "Connected", "color": "blue"}]},
+    {"title": "Cluster Size", "verticalLabel": "nodes", "lines": [{"dp": "ClusterSize", "legend": "Cluster size", "color": "blue"}, {"dp": "ExpectedClusterSize", "legend": "Expected", "color": "black"}, {"dp": "MissingNodes", "legend": "Missing", "color": "red"}, {"dp": "ClusterWeight", "legend": "Weight", "color": "fuchsia"}]},
+    {"title": "Desync and Transactions", "verticalLabel": "count", "lines": [{"dp": "DesyncCount", "legend": "Desync operations", "color": "orange"}, {"dp": "OpenTransactions", "legend": "Open transactions", "color": "blue"}]}
+  ]
+}

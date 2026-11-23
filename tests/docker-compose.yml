@@ -1,0 +1,108 @@
+# Verification for the MySQL Galera LogicModule suite. Run from the repository root, after
+# python build/build.py (every job reads dist/, not the sources):
+#
+#   docker compose -f tests/docker-compose.yml run --rm compile   groovyc every assembled script
+#   docker compose -f tests/docker-compose.yml run --rm tests     fixture harness
+#   sh tests/live.sh                                              a real three-node MariaDB Galera
+#                                                                 cluster and a standalone server,
+#                                                                 partitioned and healed; it tears
+#                                                                 the containers down afterwards
+#
+# Groovy 4 on JDK 17 is the Collector's runtime.
+
+x-galera: &galera
+  build: ./galera
+  profiles: ["live"]
+  healthcheck:
+    test: ["CMD-SHELL", "mariadb -uroot -e \"SHOW STATUS LIKE 'wsrep_local_state_comment'\" | grep -q Synced"]
+    interval: 3s
+    timeout: 5s
+    retries: 60
+    start_period: 10s
+  networks: [cluster]
+
+services:
+  compile:
+    image: groovy:4-jdk17
+    working_dir: /work
+    volumes:
+      - ..:/work
+    command: >
+      sh -c '
+      status=0;
+      for f in dist/scripts/*.groovy; do
+        if groovyc -d /tmp/classes "$$f" 2>/tmp/err; then
+          echo "PASS  $$f";
+        else
+          status=1; echo "FAIL  $$f"; sed "s/^/      /" /tmp/err;
+        fi;
+      done;
+      exit $$status'
+
+  tests:
+    image: groovy:4-jdk17
+    working_dir: /work
+    volumes:
+      - ..:/work
+    environment:
+      GALERA_MODULE_ROOT: /work
+    command: groovy tests/harness.groovy
+
+  galera1:
+    <<: *galera
+    hostname: galera1
+    command: ["galera1", "--wsrep-new-cluster"]
+
+  galera2:
+    <<: *galera
+    hostname: galera2
+    command: ["galera2"]
+    depends_on:
+      galera1: {condition: service_healthy}
+
+  galera3:
+    <<: *galera
+    hostname: galera3
+    command: ["galera3"]
+    # Also on mgmt, so the test still reaches it once live.sh detaches it from the cluster.
+    networks: [cluster, mgmt]
+    depends_on:
+      galera2: {condition: service_healthy}
+
+  # A standalone server, for the "not a Galera node" paths.
+  standalone:
+    image: mariadb:11.4
+    profiles: ["live"]
+    environment:
+      MARIADB_ROOT_PASSWORD: rootpw
+      MARIADB_USER: logicmonitor
+      MARIADB_PASSWORD: monitorpw
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+    networks: [cluster]
+
+  live:
+    image: groovy:4-jdk17
+    profiles: ["live"]
+    working_dir: /work
+    user: root
+    volumes:
+      - ..:/work
+      - grape:/root/.groovy/grapes
+    environment:
+      GALERA_MODULE_ROOT: /work
+    depends_on:
+      galera3: {condition: service_healthy}
+      standalone: {condition: service_healthy}
+    networks: [cluster, mgmt]
+    command: groovy tests/live.groovy
+
+networks:
+  cluster: {name: galera-live-cluster}
+  mgmt: {name: galera-live-mgmt}
+
+volumes:
+  grape: {}

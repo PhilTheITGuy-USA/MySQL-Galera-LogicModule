@@ -1,0 +1,116 @@
+{
+  "name": "MySQL_Galera_Replication",
+  "displayedAs": "MySQL Galera Replication",
+  "description": "Galera replication health of this node: flow control, receive and send queues, write-set throughput and certification conflicts.",
+  "group": "MySQL Galera",
+  "appliesTo": "hasCategory(\"MySQL_Galera\") && jdbc.mysql.user && jdbc.mysql.pass",
+  "searchKeywords": "mysql,mariadb,galera,wsrep,percona,pxc,replication,flow control,queue,certification,conflict",
+  "technicalNotes": "BatchScript, one instance per Galera port (wildvalue = port), one JDBC connection per port per poll running SHOW GLOBAL STATUS LIKE 'wsrep%'. Same AppliesTo, properties and privilege (USAGE) as MySQL_Galera_Node.\n\nFlowControlPausedPercent is the share of the poll interval replication was paused by flow control, from the cumulative wsrep_flow_control_paused_ns: the script prints it divided by 10^7 and the datapoint is a derive, so its per-second rate is the percentage. The older wsrep_flow_control_paused is not used: it is averaged since whoever last ran FLUSH STATUS, so any other tool resets it. Flow control pauses the whole cluster for its slowest node; a node with a growing LocalRecvQueue is the one sending the pauses. It warns above 10% for five polls in a row. FlowControlActive is wsrep_flow_control_active (Galera 4) or wsrep_flow_control_status (Percona), 1 while paused.\n\nLocalRecvQueueAvg and LocalSendQueueAvg are the server's averages since the previous status query, which on a node polled only by this module is the poll interval; another tool querying the same server shortens that window. Receive queue average above 0.5, or send queue average above 1, for five polls warns: the node is applying write-sets slower than the cluster produces them, or cannot ship its own fast enough (network).\n\nTransactionsReplicated, BytesReplicated, TransactionsReceived, BytesReceived, LocalCommits, CertFailures and BruteForceAborts are per second (derive of the cumulative wsrep_replicated, wsrep_replicated_bytes, wsrep_received, wsrep_received_bytes, wsrep_local_commits, wsrep_local_cert_failures and wsrep_local_bf_aborts). CertFailures above 5 per second for five polls warns: concurrent writes to the same rows on different nodes are being rolled back at commit; send those writes to one node. wsrep_flow_control_sent and _recv are not reported: providers disagree on whether they reset at each status query.\n\nOn a provider without wsrep_flow_control_paused_ns or the flow-control flag those datapoints read No Data. A server that does not answer fails the poll (exit 2). Instances are never auto-deleted.",
+  "collectionMethod": "batchscript",
+  "collectionInterval": "1m",
+  "multiInstance": true,
+  "useWildValueAsUniqueIdentifier": true,
+  "collectScript": "MySQL_Galera_Replication.collect.groovy",
+  "discoveryScript": "MySQL_Galera.ad.groovy",
+  "discoveryInterval": "60m",
+  "autoDelete": false,
+  "datapoints": [
+    {
+      "name": "FlowControlPausedPercent",
+      "description": "Percent of the poll interval replication was paused by flow control (derive of wsrep_flow_control_paused_ns / 10^7).",
+      "type": "derive",
+      "min": "0",
+      "max": "100",
+      "conditional": true,
+      "threshold": "> 10",
+      "triggerInterval": 4,
+      "alertBody": "Replication on the Galera cluster was paused by flow control ##VALUE##% of the time, seen from ##HOST## (##INSTANCE##), for five minutes. While paused, no node commits writes. The node holding the cluster back is the one with the largest receive queue (LocalRecvQueue) and FlowControlActive raised: look for a slow disk, CPU saturation, long-running transactions or too few applier threads (wsrep_slave_threads / wsrep_applier_threads) there.\n\nThis started at ##START##, ##DURATION## ago."
+    },
+    {
+      "name": "FlowControlActive",
+      "description": "1 while flow control is pausing replication (wsrep_flow_control_active or wsrep_flow_control_status), 0 otherwise.",
+      "conditional": true,
+      "statusNames": {"0": "Not paused", "1": "Paused"}
+    },
+    {
+      "name": "LocalRecvQueue",
+      "description": "wsrep_local_recv_queue: write-sets received and waiting to be applied, now."
+    },
+    {
+      "name": "LocalRecvQueueAvg",
+      "description": "wsrep_local_recv_queue_avg: average receive queue length since the previous status query.",
+      "threshold": "> 0.5",
+      "triggerInterval": 4,
+      "alertBody": "Galera node ##HOST## (##INSTANCE##) has averaged ##VALUE## write-sets waiting to be applied for five minutes. It is applying replicated writes more slowly than the cluster produces them, and will soon throttle the whole cluster through flow control. Check its disk latency, CPU and applier thread count.\n\nThis started at ##START##, ##DURATION## ago."
+    },
+    {
+      "name": "LocalSendQueue",
+      "description": "wsrep_local_send_queue: write-sets waiting to be sent to the cluster, now."
+    },
+    {
+      "name": "LocalSendQueueAvg",
+      "description": "wsrep_local_send_queue_avg: average send queue length since the previous status query.",
+      "threshold": "> 1",
+      "triggerInterval": 4,
+      "alertBody": "Galera node ##HOST## (##INSTANCE##) has averaged ##VALUE## write-sets waiting to be sent for five minutes. Its own writes are leaving it more slowly than they are made, which usually means network throughput or latency between the nodes.\n\nThis started at ##START##, ##DURATION## ago."
+    },
+    {
+      "name": "CertDepsDistance",
+      "description": "wsrep_cert_deps_distance: average number of write-sets that could be applied in parallel; a guide for applier thread count."
+    },
+    {
+      "name": "TransactionsReplicated",
+      "description": "Write-sets this node sent to the cluster, per second (derive of wsrep_replicated).",
+      "type": "derive",
+      "min": "0"
+    },
+    {
+      "name": "BytesReplicated",
+      "description": "Bytes of write-sets this node sent to the cluster, per second (derive of wsrep_replicated_bytes).",
+      "type": "derive",
+      "min": "0"
+    },
+    {
+      "name": "TransactionsReceived",
+      "description": "Write-sets this node received from the cluster, per second (derive of wsrep_received).",
+      "type": "derive",
+      "min": "0"
+    },
+    {
+      "name": "BytesReceived",
+      "description": "Bytes of write-sets this node received from the cluster, per second (derive of wsrep_received_bytes).",
+      "type": "derive",
+      "min": "0"
+    },
+    {
+      "name": "LocalCommits",
+      "description": "Local transactions committed, per second (derive of wsrep_local_commits).",
+      "type": "derive",
+      "min": "0"
+    },
+    {
+      "name": "CertFailures",
+      "description": "Local transactions that failed certification (a conflicting write on another node won), per second (derive of wsrep_local_cert_failures).",
+      "type": "derive",
+      "min": "0",
+      "threshold": "> 5",
+      "triggerInterval": 4,
+      "alertBody": "Galera node ##HOST## (##INSTANCE##) has had ##VALUE## transactions per second fail certification for five minutes: applications are writing the same rows on more than one node at once, and the losers are rolled back at commit. Route conflicting writes to a single node.\n\nThis started at ##START##, ##DURATION## ago."
+    },
+    {
+      "name": "BruteForceAborts",
+      "description": "Local transactions aborted by a replicated write-set that took their locks, per second (derive of wsrep_local_bf_aborts).",
+      "type": "derive",
+      "min": "0"
+    }
+  ],
+  "graphs": [
+    {"title": "Flow Control", "verticalLabel": "% of time paused", "max": 100, "lines": [{"dp": "FlowControlPausedPercent", "legend": "Paused", "color": "red"}]},
+    {"title": "Flow Control State", "verticalLabel": "1 = paused", "max": 1, "lines": [{"dp": "FlowControlActive", "legend": "Paused now", "color": "orange"}]},
+    {"title": "Queues", "verticalLabel": "write-sets", "lines": [{"dp": "LocalRecvQueue", "legend": "Receive queue", "color": "blue"}, {"dp": "LocalRecvQueueAvg", "legend": "Receive queue (avg)", "color": "green"}, {"dp": "LocalSendQueue", "legend": "Send queue", "color": "orange"}, {"dp": "LocalSendQueueAvg", "legend": "Send queue (avg)", "color": "fuchsia"}]},
+    {"title": "Write-Sets", "verticalLabel": "per second", "lines": [{"dp": "TransactionsReplicated", "legend": "Replicated (sent)", "color": "blue"}, {"dp": "TransactionsReceived", "legend": "Received", "color": "green"}, {"dp": "LocalCommits", "legend": "Local commits", "color": "black"}]},
+    {"title": "Replication Throughput", "verticalLabel": "bytes per second", "scale1024": true, "lines": [{"dp": "BytesReplicated", "legend": "Sent", "color": "blue"}, {"dp": "BytesReceived", "legend": "Received", "color": "green"}]},
+    {"title": "Conflicts", "verticalLabel": "per second", "lines": [{"dp": "CertFailures", "legend": "Certification failures", "color": "red"}, {"dp": "BruteForceAborts", "legend": "Brute-force aborts", "color": "orange"}]},
+    {"title": "Parallelism", "verticalLabel": "write-sets", "lines": [{"dp": "CertDepsDistance", "legend": "Cert deps distance", "color": "blue"}]}
+  ]
+}

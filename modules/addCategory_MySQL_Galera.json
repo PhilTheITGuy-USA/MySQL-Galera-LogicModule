@@ -1,0 +1,10 @@
+{
+  "name": "addCategory_MySQL_Galera",
+  "moduleType": "propertysource",
+  "group": "MySQL Galera",
+  "description": "Adds the MySQL_Galera category to a MySQL, MariaDB or Percona XtraDB Cluster server that is a Galera cluster node, with its cluster name, node name and provider version.",
+  "appliesTo": "jdbc.mysql.user && jdbc.mysql.pass",
+  "searchKeywords": "mysql,mariadb,galera,wsrep,percona,pxc,cluster,category",
+  "technicalNotes": "Runs on every resource carrying LogicMonitor's MySQL credential properties, jdbc.mysql.user and jdbc.mysql.pass, the same ones LogicMonitor's own MySQL modules use. It connects to port 3306 and to each port in jdbc.mysql.port (comma-separated), reads SHOW GLOBAL STATUS LIKE 'wsrep%' and a few global variables, and adds the category only when wsrep_on is ON, a wsrep provider is loaded and the provider reports a node state. A standalone or asynchronously replicated MySQL server gets nothing.\n\nProperties set (stored with the auto. prefix): auto.galera.ports (the Galera ports found), auto.galera.cluster_name (wsrep_cluster_name), auto.galera.node_name (wsrep_node_name), auto.galera.provider_version, auto.galera.provider_vendor, auto.galera.server_flavor (mariadb, percona or mysql) and auto.galera.server_version, all from the first Galera port.\n\nSilent on every failure, missing credentials included: it exits 0 and prints nothing, so it can never put the category on the wrong server. A PropertySource cannot remove a category: when a server stops being a Galera node, remove MySQL_Galera from its system.categories by hand.\n\nConnection: the Collector's bundled MySQL JDBC driver (Connector/J; MariaDB Connector/J is tried last), with LogicMonitor's mysql.nossl and mysql.url_driver_properties honoured as LogicMonitor's MySQL modules document them. Needs only the USAGE privilege.",
+  "collectScript": "addCategory_MySQL_Galera.groovy"
+}
